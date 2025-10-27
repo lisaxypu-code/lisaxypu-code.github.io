@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFC 打卡系统</title>
+  <style>
+    body {
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      text-align: center;
+      padding: 40px;
+      background: linear-gradient(180deg, #f0f4f7, #ffffff);
+      color: #333;
+    }
+    h1 {
+      color: #1e88e5;
+    }
+    button {
+      background: #1e88e5;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 28px;
+      font-size: 18px;
+      cursor: pointer;
+      margin-top: 30px;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #1565c0;
+    }
+    input {
+      margin-top: 15px;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      width: 60%;
+      max-width: 250px;
+    }
+    #log {
+      margin-top: 40px;
+      text-align: left;
+      background: #f9f9f9;
+      border-radius: 10px;
+      padding: 15px;
+      font-size: 15px;
+      line-height: 1.5;
+      color: #555;
+      width: 90%;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>📱 NFC 打卡系统</h1>
+  <p>输入姓名后点击按钮并靠近 NFC 标签</p>
+
+  <input type="text" id="name" placeholder="请输入姓名">
+  <br>
+  <button id="scanButton">开始扫描 NFC</button>
+
+  <div id="log"></div>
+
+  <script>
+    // 👉 请替换为你的 Google Apps Script 发布网址
+    https://docs.google.com/spreadsheets/d/1vJugCbT_HXvQf1T9YXXAqPfNG8tvOSaV_hMBTWdqd2A/edit?pli=1&gid=0#gid=0
+    const endpoint = "https://script.google.com/macros/s/你的脚本ID/exec";
+
+    const nameInput = document.getElementById("name");
+    const logBox = document.getElementById("log");
+    const scanButton = document.getElementById("scanButton");
+
+    function log(message) {
+      const time = new Date().toLocaleTimeString();
+      logBox.innerHTML += `<div>[${time}] ${message}</div>`;
+    }
+
+    async function startScan() {
+      const userName = nameInput.value.trim();
+      if (!userName) {
+        alert("请先输入姓名！");
+        return;
+      }
+
+      if (!("NDEFReader" in window)) {
+        alert("此设备不支持 NFC。请使用支持 NFC 的安卓手机并用 Chrome 打开。");
+        return;
+      }
+
+      try {
+        const reader = new NDEFReader();
+        await reader.scan();
+        log("📶 NFC 扫描已启动，请将手机靠近标签...");
+
+        reader.onreading = async (event) => {
+          const tagID = event.serialNumber || "未知标签";
+          const now = new Date().toISOString();
+          const clockType = confirm("点击确定为【上班打卡】，取消为【下班打卡】")
+            ? "Clock In"
+            : "Clock Out";
+
+          const data = {
+            name: userName,
+            tagID: tagID,
+            clockType: clockType,
+            time: now,
+            device: navigator.userAgent
+          };
+
+          log(`✅ 读取到标签：${tagID}`);
+          log("⏳ 正在上传打卡数据...");
+
+          try {
+            const res = await fetch(endpoint, {
+              method: "POST",
+              body: JSON.stringify(data),
+              headers: { "Content-Type": "application/json" }
+            });
+
+            if (res.ok) {
+              log(`🎉 打卡成功（${clockType}）`);
+              alert(`${userName} 打卡成功！`);
+            } else {
+              log("❌ 上传失败，请检查网络或服务器设置。");
+            }
+          } catch (err) {
+            log("⚠️ 网络错误：" + err);
+          }
+        };
+      } catch (error) {
+        log("⚠️ NFC 读取失败：" + error);
+      }
+    }
+
+    scanButton.addEventListener("click", startScan);
+  </script>
+</body>
+</html>
